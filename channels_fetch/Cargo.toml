@@ -1,5 +1,5 @@
 [package]
-name = "channels2"
+name = "channels1"
 version = "0.1.0"
 authors = ["Jose Manuel Cantera Fonseca <jmcanterafonseca@gmail.com>"]
 edition = "2018"
@@ -8,5 +8,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
-iota-streams = { git = "https://github.com/iotaledger/streams", branch  = "develop"}
+iota-streams = { git = "https://github.com/iotaledger/streams", branch  = "chrysalis-2"}
 serde_json = "1.0"
+chrono = "0.4"
+rand = "0.8"
+futures = { version = "0.3.8", default-features = false  }
+tokio = {version = "1.1"}

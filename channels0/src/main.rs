@@ -11,6 +11,7 @@ use iota_streams::{
     prelude::{Rc, String},
     Result,
   },
+  ddml::types::Bytes,
 };
 
 use core::cell::RefCell;
@@ -19,14 +20,14 @@ use chrono::prelude::Utc;
 
 use serde_json::json;
 
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::{
+  distributions::Alphanumeric,
+  {thread_rng, Rng},
+};
 
 use std::env;
 
 use futures::executor::block_on;
-
-use iota_streams::ddml::types::Bytes;
 
 fn main_function() {
   println!(".... Starting IOTA Streams / Channels Application ....");
@@ -97,8 +98,7 @@ fn main_function() {
 
   println!("Sending message ... {}", previous_msg_link);
 
-  match author.send_signed_packet(&previous_msg_link, 
-    &public_payload, &empty_masked_payload) {
+  match author.send_signed_packet(&previous_msg_link, &public_payload, &empty_masked_payload) {
     Err(why) => println!("Error: {:?}", why),
     Ok((signed_message, seq)) => println!(
       "Channel Id:  {} Previous Message Id: {} Signed Message Id: {}",
