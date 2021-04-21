@@ -1,39 +1,90 @@
-use iota_streams::app_channels::api::tangle::Author;
-
 mod api_author;
-use crate::api_author::announce::start_a_new_channel;
-use crate::api_author::send_message::send_signed_message;
 
-use iota_streams::app::transport::tangle::{
-  client::{RecvOptions, SendTrytesOptions},
-  PAYLOAD_BYTES,
+use iota_streams::{
+  app::transport::tangle::PAYLOAD_BYTES,
+  app::transport::{
+    tangle::client::{iota_client, Client, SendOptions},
+    TransportOptions,
+  },
+  app_channels::api::tangle::{Address, Author},
+  core::{
+    prelude::{Rc, String},
+    Result,
+  },
 };
 
-use iota::client as iota_client;
+use core::cell::RefCell;
 
-use chrono::prelude::*;
+use chrono::prelude::Utc;
 
 use serde_json::json;
 
-fn main() {
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+
+use std::env;
+
+use futures::executor::block_on;
+
+use iota_streams::ddml::types::Bytes;
+
+fn main_function() {
   println!(".... Starting IOTA Streams / Channels Application ....");
-
-  let mut client = iota_client::Client::get();
-  iota_client::Client::add_node("https://nodes.devnet.iota.org:443").unwrap();
-
-  let mut send_opt = SendTrytesOptions::default();
-  send_opt.min_weight_magnitude = 9;
-  send_opt.local_pow = false;
 
   let encoding = "utf-8";
 
-  let mut author = Author::new("64312STREAMSANDCHANNELS", encoding, PAYLOAD_BYTES, false);
+  // Get the channel's seed
+  let args: Vec<String> = env::args().collect();
+  let mut is_new_channel = true;
 
+  let mut seed: &str = &generate_seed().unwrap();
+  let mut previous_message_id: String = String::from("");
+  let mut previous_msg_link: Address = Address::default();
+
+  if args.len() > 1 {
+    seed = &args[1];
+    previous_message_id = args[2].to_owned();
+    is_new_channel = false;
+  }
+
+  // Parse env vars with a fallback
+  let node_url = String::from("https://api.lb-0.testnet.chrysalis2.com");
+
+  let send_opt = SendOptions::default();
+
+  // Fails at unwrap when the url isnt working
+  // TODO: Fail gracefully
+  let iota_client = block_on(
+    iota_client::ClientBuilder::new()
+      .with_node(&node_url)
+      .unwrap()
+      //.with_node_sync_disabled()
+      .with_local_pow(false)
+      .finish(),
+  )
+  .unwrap();
+
+  let client = Client::new(send_opt, iota_client);
+  let mut transport = Rc::new(RefCell::new(client));
+  transport.set_send_options(send_opt);
+
+  println!("Seed: {}", seed);
+
+  // false indicates that no multi-branch will be used
+  let mut author = Author::new(seed, encoding, PAYLOAD_BYTES, false, transport.clone());
+
+  // The address of the channel
   let channel_address = author.channel_address().unwrap().to_string();
-  let announce_message = start_a_new_channel(&mut author, &mut client, send_opt).unwrap();
-
   println!("Channel Address: {}", channel_address);
-  println!("Announce Message: {}", announce_message);
+
+  if is_new_channel {
+    previous_msg_link = author.send_announce().unwrap();
+    previous_message_id = previous_msg_link.msgid.to_string();
+    println!("Announce Message Id: {}", previous_message_id);
+  } else {
+    previous_msg_link = Address::from_str(&channel_address, &previous_message_id).unwrap();
+    println!("Previous Message Id: {}", previous_message_id);
+  }
 
   let message = json!({
       "message": "Hello",
@@ -41,19 +92,33 @@ fn main() {
   });
 
   // let public_payload = r#"{ "message": "Hello World" }"#;
+  let public_payload = Bytes(message.to_string().as_bytes().to_vec());
+  let empty_masked_payload = Bytes("".as_bytes().to_vec());
 
-  let signed_message = send_signed_message(
-    &mut author,
-    &channel_address,
-    &announce_message.msgid.to_string(),
-    &mut message.to_string(),
-    &mut client,
-    send_opt,
-  )
-  .unwrap();
+  println!("Sending message ... {}", previous_msg_link);
 
-  println!(
-    "Channel Id:  {} Announce Message Id: {} Signed Message Id: {}",
-    channel_address, announce_message.msgid, signed_message.msgid
-  );
+  match author.send_signed_packet(&previous_msg_link, 
+    &public_payload, &empty_masked_payload) {
+    Err(why) => println!("Error: {:?}", why),
+    Ok((signed_message, seq)) => println!(
+      "Channel Id:  {} Previous Message Id: {} Signed Message Id: {}",
+      channel_address, previous_message_id, signed_message.msgid
+    ),
+  }
+}
+
+fn generate_seed() -> Result<String> {
+  let rand_string: String = thread_rng()
+    .sample_iter(&Alphanumeric)
+    .take(30)
+    .map(char::from)
+    .collect();
+
+  Ok(rand_string)
+}
+
+#[tokio::main]
+async fn main() {
+  // main_pure();
+  main_function();
 }
