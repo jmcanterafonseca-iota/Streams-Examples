@@ -38,13 +38,13 @@ fn main_function() {
   let args: Vec<String> = env::args().collect();
   let mut is_new_channel = true;
 
-  let mut seed: &str = &generate_seed().unwrap();
+  let password = "insecurepassword";
+  let author_state_file_name = "author_state.bin";
   let mut previous_message_id: String = String::from("");
   let mut previous_msg_link: Address = Address::default();
 
   if args.len() > 1 {
-    seed = &args[1];
-    previous_message_id = args[2].to_owned();
+    previous_message_id = args[1].to_owned();
     is_new_channel = false;
   }
 
@@ -69,23 +69,35 @@ fn main_function() {
   let mut transport = Rc::new(RefCell::new(client));
   transport.set_send_options(send_opt);
 
-  println!("Seed: {}", seed);
+  let mut author = if is_new_channel {
+    let mut seed: &str = &generate_seed().unwrap();
+    println!("Seed: {}", seed);
+  
+    // false indicates that no multi-branch will be used
+    let mut author = Author::new(seed, encoding, PAYLOAD_BYTES, false, transport);
 
-  // false indicates that no multi-branch will be used
-  let mut author = Author::new(seed, encoding, PAYLOAD_BYTES, false, transport.clone());
+    // The address of the channel
+    let channel_address = author.channel_address().unwrap().to_string();
+    println!("Channel Address: {}", channel_address);
 
-  // The address of the channel
-  let channel_address = author.channel_address().unwrap().to_string();
-  println!("Channel Address: {}", channel_address);
-
-  if is_new_channel {
     previous_msg_link = author.send_announce().unwrap();
     previous_message_id = previous_msg_link.msgid.to_string();
     println!("Announce Message Id: {}", previous_message_id);
+    author
   } else {
+    let author_state = std::fs::read(author_state_file_name).unwrap();
+    let mut author = Author::import(&author_state, password, transport).unwrap();
+
+    // The address of the channel
+    let channel_address = author.channel_address().unwrap().to_string();
+    println!("Channel Address: {}", channel_address);
+
     previous_msg_link = Address::from_str(&channel_address, &previous_message_id).unwrap();
     println!("Previous Message Id: {}", previous_message_id);
-  }
+
+    author
+  };
+  let channel_address = author.channel_address().unwrap().to_string();
 
   let message = json!({
       "message": "Hello",
@@ -93,18 +105,21 @@ fn main_function() {
   });
 
   // let public_payload = r#"{ "message": "Hello World" }"#;
-  let public_payload = Bytes(message.to_string().as_bytes().to_vec());
-  let empty_masked_payload = Bytes("".as_bytes().to_vec());
+  let public_payload = Bytes("".as_bytes().to_vec());
+  let masked_payload = Bytes(message.to_string().as_bytes().to_vec());
 
   println!("Sending message ... {}", previous_msg_link);
 
-  match author.send_signed_packet(&previous_msg_link, &public_payload, &empty_masked_payload) {
+  match author.send_signed_packet(&previous_msg_link, &public_payload, &masked_payload) {
     Err(why) => println!("Error: {:?}", why),
     Ok((signed_message, seq)) => println!(
       "Channel Id:  {} Previous Message Id: {} Signed Message Id: {}",
       channel_address, previous_message_id, signed_message.msgid
     ),
   }
+
+  std::fs::write(author_state_file_name, author.export(password).unwrap());
+  std::fs::write("../channels_fetch/author_state.bin", author.export(password).unwrap());
 }
 
 fn generate_seed() -> Result<String> {
