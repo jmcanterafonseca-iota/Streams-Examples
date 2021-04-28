@@ -1,5 +1,3 @@
-mod api_author;
-
 use iota_streams::{
   app::transport::tangle::PAYLOAD_BYTES,
   app::transport::{
@@ -104,6 +102,8 @@ fn main_function() {
       "timestamp": Utc::now().to_rfc3339()
   });
 
+  println!("Author Public Key: {:?}", author.get_pk());
+
   // let public_payload = r#"{ "message": "Hello World" }"#;
   let public_payload = Bytes("".as_bytes().to_vec());
   let masked_payload = Bytes(message.to_string().as_bytes().to_vec());
@@ -120,6 +120,7 @@ fn main_function() {
 
   std::fs::write(author_state_file_name, author.export(password).unwrap());
   std::fs::write("../channels_fetch/author_state.bin", author.export(password).unwrap());
+  std::fs::write("../channels_fetch_one/author_state.bin", author.export(password).unwrap());
 }
 
 fn generate_seed() -> Result<String> {

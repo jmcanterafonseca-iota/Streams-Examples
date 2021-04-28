@@ -32,13 +32,11 @@ fn main_function() {
   let mut seed: &str = &String::default();
   let mut start_msg: &str = &String::default();
 
-  /*
-  if args.len() > 2 {
-    seed = &args[1];
-    start_msg = &args[2];
+  if args.len() > 1 {
+    start_msg = &args[1];
   } else {
-    panic!("Please provide a seed an announce message id to the channel");
-  } */
+    panic!("Please provide a message id to be retrieved from the channel");
+  }
 
   // Parse env vars with a fallback
   let node_url = String::from("https://api.lb-0.testnet.chrysalis2.com");
@@ -73,37 +71,22 @@ fn main_function() {
   let channel_address = author.channel_address().unwrap().to_string();
   println!("Channel Address: {}", channel_address);
 
-  let messages = author.fetch_next_msgs();
-  // while messages.len() > 0 {
-  println!("Number of messages: {}", messages.len());
+  let message = author.receive_msg(&Address::from_str(&channel_address, start_msg).unwrap()).unwrap();
 
-  for message in messages.iter() {
-    match &message.body {
-      SignedPacket {
-        pk,
-        public_payload,
-        masked_payload,
-      } => {
-        println!(
-          "public_payload={}, masked_payload={}",
-          public_payload.to_string(),
-          masked_payload.to_string()
-        );
-        println!("Message Id {}", message.link);
-        // println!("Previous Message Id {}", message.);
-        println!("Public {}", std::str::from_utf8(&public_payload.0).unwrap());
-        println!("Masked {}", std::str::from_utf8(&masked_payload.0).unwrap());
-      }
-      _ => {}
+  match &message.body {
+    SignedPacket {
+      pk,
+      public_payload,
+      masked_payload,
+    } => {
+      println!("Public Key: {:#?}", pk);
+      println!("Message Id {}", message.link);
+      // println!("Previous Message Id {}", message.);
+      println!("Public {}", std::str::from_utf8(&public_payload.0).unwrap());
+      println!("Masked {}", std::str::from_utf8(&masked_payload.0).unwrap());
     }
+    _ => {}
   }
-  // }
-
-  /*
-  match author.receive_msg(&Address::from_str(&channel_address, start_msg).unwrap()) {
-    Ok(message) => println!("Received message: {}", message.link),
-    Err(why) => println!("Error: {:?}", why),
-  } */
 }
 
 #[tokio::main]

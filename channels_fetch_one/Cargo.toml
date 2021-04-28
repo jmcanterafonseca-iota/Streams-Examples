@@ -1,5 +1,5 @@
 [package]
-name = "channels1"
+name = "channels_fetch_one"
 version = "0.1.0"
 authors = ["Jose Manuel Cantera Fonseca <jmcanterafonseca@gmail.com>"]
 edition = "2018"
